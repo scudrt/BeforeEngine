@@ -32,7 +32,7 @@ using namespace Microsoft::WRL;
 
 class BeforeD3D12 {
 public:
-	BeforeD3D(){}
+	BeforeD3D(HWND hwnd): windowHandle(hwnd){}
 
 	void createDevice();
 
@@ -44,7 +44,19 @@ public:
 
 	void createCommandObjects();
 
+	void createSwapChain();
+
+	void createDescriptorHeap();
+
+	void createRTV();
+
+	void createDSV();
+
+	void flushCmdQueue();
+
+	void createViewportAndScissorRect();
 protected:
+	HWND windowHandle;
 	ComPtr<IDXGIFactory4> dxgiFactory;
 	ComPtr<ID3D12Device> d3dDevice;
 	ComPtr<ID3D12Fence> fence;
@@ -54,7 +66,13 @@ protected:
 	ComPtr<ID3D12CommandQueue> cmdQueue;
 	ComPtr<ID3D12CommandAllocator> cmdAllocator;
 	ComPtr<ID3D12GraphicsCommandList> graphicsCommandList;
+	ComPtr<IDXGISwapChain> swapChain;
+	ComPtr<ID3D12DescriptorHeap> rtvHeap;
+	ComPtr<ID3D12DescriptorHeap> dsvHeap;
+	ComPtr<ID3D12Resource> swapChainBuffer[2]; // double-buffer
+	ComPtr<ID3D12Resource> depthStencilBuffer;
 
+	int currentFence = 0;
 	UINT rtvDescriptorSize; // render target view descriptor size
 	UINT dsvDescriptorSize; // depth stancil view descriptor size
 	UINT cbv_src_uavDescriptorSize; // constant buffer view, shader resource cache, universal random access
