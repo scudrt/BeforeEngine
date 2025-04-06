@@ -91,10 +91,10 @@ bool initWindow(HINSTANCE hInstance, int nShowCmd) {
 bool initRHI() {
 #if RHI_DX12
     // enable debug layer for D3D12
-#if defined(DEBUG) || defined(_DEBUG)
+#if defined(DEBUG) || defined(_DEBUG) || 1
     ComPtr<ID3D12Debug> debugController;
     ThrowIfFailed(
-        D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
+        D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))
     );
     debugController->EnableDebugLayer();
 #endif
@@ -124,14 +124,11 @@ int run() {
     MSG msg = { 0 };
     BOOL bRet = 0;
     //如果GetMessage函数不等于0，说明没有接受到WM_QUIT
-    while (bRet = GetMessage(&msg, 0, 0, 0) != 0) {
-        //如果等于-1，说明GetMessage函数出错了，弹出错误框
-        if (bRet != -1) {
-            //如果等于其他值，说明接收到了消息
+    while (msg.message != WM_QUIT) {
+        if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) { //PeekMessage函数会自动填充msg结构体元素
             TranslateMessage(&msg);	//键盘按键转换，将虚拟键消息转换为字符消息
             DispatchMessage(&msg);	//把消息分派给相应的窗口过程
-        }
-        else {
+        } else {
             draw();
         }
     }

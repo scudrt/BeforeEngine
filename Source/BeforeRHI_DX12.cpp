@@ -78,9 +78,9 @@ void BeforeD3D12::onDestroy() {
 }
 
 void BeforeD3D12::createDevice() {
-	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&this->dxgiFactory)));
+	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));
 	ThrowIfFailed(
-		D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&this->d3dDevice))
+		D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&d3dDevice))
 	);
 }
 
@@ -139,6 +139,9 @@ void BeforeD3D12::createCommandObjects() {
 		)
 	);
 	cmdList->Close(); // close before resetting command list
+
+	cmdAllocator->Reset();
+	cmdList->Reset(cmdAllocator.Get(), nullptr);
 }
 
 void BeforeD3D12::createSwapChain() {
@@ -198,7 +201,7 @@ void BeforeD3D12::createDescriptorHeap() {
 
 void BeforeD3D12::createRTV() {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(rtvHeap->GetCPUDescriptorHandleForHeapStart());
-	for (int i = 0; i <= 2; ++i) {
+	for (int i = 0; i < 2; ++i) {
 		swapChain->GetBuffer(i, IID_PPV_ARGS(swapChainBuffer[i].GetAddressOf()));
 		d3dDevice->CreateRenderTargetView(
 			swapChainBuffer[i].Get(),
@@ -228,7 +231,7 @@ void BeforeD3D12::createDSV() {
 	optClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // 24 for depth and 8 for stencil
 	optClear.DepthStencil.Depth = 1; // initial depth value
 	optClear.DepthStencil.Stencil = 0; // initial stencil value
-	
+
 	ThrowIfFailed(
 		d3dDevice->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -255,7 +258,8 @@ void BeforeD3D12::createDSV() {
 			D3D12_RESOURCE_STATE_DEPTH_WRITE // state after transition
 		)
 	);
-	ThrowIfFailed(cmdList->Close());
+	HRESULT hr = cmdList->Close();
+	ThrowIfFailed(hr);
 	ID3D12CommandList* cmdLists[] = { cmdList.Get() };
 	cmdQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists); // committing commands from list to queue
 }
