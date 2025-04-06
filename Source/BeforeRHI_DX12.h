@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RHIBase.h"
+
 #include <Windows.h>
 #include <wrl.h>
 #include <dxgi1_4.h>
@@ -30,9 +32,13 @@ using namespace Microsoft::WRL;
 
 #include "DxException.h"
 
-class BeforeD3D12 {
+class BeforeD3D12 : public RHIBase{
 public:
-	BeforeD3D(HWND hwnd): windowHandle(hwnd){}
+	BeforeD3D12(HWND hwnd): windowHandle(hwnd){}
+
+	virtual bool init() override;
+	virtual void draw() override;
+	virtual void onDestroy() override;
 
 	void createDevice();
 
@@ -61,11 +67,13 @@ protected:
 	ComPtr<ID3D12Device> d3dDevice;
 	ComPtr<ID3D12Fence> fence;
 
-	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msaaQualityLevels;
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msaaQualityLevels = {};
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
+	D3D12_VIEWPORT viewport;
+	D3D12_RECT scissorRect;
 	ComPtr<ID3D12CommandQueue> cmdQueue;
 	ComPtr<ID3D12CommandAllocator> cmdAllocator;
-	ComPtr<ID3D12GraphicsCommandList> graphicsCommandList;
+	ComPtr<ID3D12GraphicsCommandList> cmdList;
 	ComPtr<IDXGISwapChain> swapChain;
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> dsvHeap;
@@ -73,7 +81,8 @@ protected:
 	ComPtr<ID3D12Resource> depthStencilBuffer;
 
 	int currentFence = 0;
-	UINT rtvDescriptorSize; // render target view descriptor size
-	UINT dsvDescriptorSize; // depth stancil view descriptor size
-	UINT cbv_src_uavDescriptorSize; // constant buffer view, shader resource cache, universal random access
+	UINT curBackBuffer = 0;
+	UINT rtvDescriptorSize = 0; // render target view descriptor size
+	UINT dsvDescriptorSize = 0; // depth stancil view descriptor size
+	UINT cbv_src_uavDescriptorSize = 0; // constant buffer view, shader resource cache, universal random access
 };

@@ -1,5 +1,16 @@
 #pragma once
 
+#include <comdef.h>
+#include <string>
+
+//AnsiToWString函数（转换成宽字符类型的字符串，wstring）
+//在Windows平台上，我们应该都使用wstring和wchar_t，处理方式是在字符串前+L
+inline std::wstring AnsiToWString(const std::string& str) {
+    WCHAR buffer[1024];
+    MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, buffer, 1024);
+    return std::wstring(buffer);
+}
+
 class DxException
 {
 public:

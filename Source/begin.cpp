@@ -13,11 +13,12 @@ done 创建描述符堆。
 done 创建描述符。
 done 资源转换。
 done 设置围栏刷新命令队列。
-设置视口和裁剪矩形。
-将命令从列表传至队列。
+done 设置视口和裁剪矩形。
+done 将命令从列表传至队列。
 */
 
 HWND mhMainWnd = 0;	//某个窗口的句柄，ShowWindow和UpdateWindow函数均要调用此句柄
+RHIBase* rhiBase = nullptr;
 
 //窗口过程函数
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -35,11 +36,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int nShowCmd) {
-#if defined(DEBUG) | defined(_DEBUG)
-    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
-
+bool initWindow(HINSTANCE hInstance, int nShowCmd) {
     //窗口初始化描述结构体(WNDCLASS)
     WNDCLASS wc;
     wc.style = CS_HREDRAW | CS_VREDRAW;	//当工作区宽高改变，则重新绘制窗口
@@ -52,7 +49,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);	//指定了白色背景画刷句柄
     wc.lpszMenuName = 0;	//没有菜单栏
     wc.lpszClassName = LPCSTR("MainWnd");	//窗口名
-    if (!RegisterClass(&wc))
+    if (!RegisterClass(&wc)) // 窗口注册失败
     {
         //消息框函数，参数1：消息框所属窗口句柄，可为NULL。参数2：消息框显示的文本信息。参数3：标题文本。参数4：消息框样式
         MessageBox(0, LPCSTR("RegisterClass Failed"), 0, 0);
@@ -88,6 +85,40 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     ShowWindow(mhMainWnd, nShowCmd);
     UpdateWindow(mhMainWnd);
 
+    return true;
+}
+
+bool initRHI() {
+#if RHI_DX12
+    // enable debug layer for D3D12
+#if defined(DEBUG) || defined(_DEBUG)
+    ComPtr<ID3D12Debug> debugController;
+    ThrowIfFailed(
+        D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
+    );
+    debugController->EnableDebugLayer();
+#endif
+    rhiBase = new BeforeD3D12(mhMainWnd);
+    return rhiBase->init();
+#endif // RHI_DX12
+}
+
+bool init(HINSTANCE hInstance, int nShowCmd) {
+    if (!initWindow(hInstance, nShowCmd)) {
+        return false;
+    }
+    if (!initRHI()) {
+        return false;
+    }
+
+    return true;
+}
+
+void draw() {
+    rhiBase->draw();
+}
+
+int run() {
     //消息循环
     //定义消息结构体
     MSG msg = { 0 };
@@ -95,14 +126,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
     //如果GetMessage函数不等于0，说明没有接受到WM_QUIT
     while (bRet = GetMessage(&msg, 0, 0, 0) != 0) {
         //如果等于-1，说明GetMessage函数出错了，弹出错误框
-        if (bRet == -1) {
-            MessageBox(0, LPCSTR("GetMessage Failed"), LPCSTR("Errow"), MB_OK);
-        }
-        //如果等于其他值，说明接收到了消息
-        else {
+        if (bRet != -1) {
+            //如果等于其他值，说明接收到了消息
             TranslateMessage(&msg);	//键盘按键转换，将虚拟键消息转换为字符消息
             DispatchMessage(&msg);	//把消息分派给相应的窗口过程
         }
+        else {
+            draw();
+        }
     }
     return (int)msg.wParam;
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int nShowCmd) {
+#if defined(DEBUG) | defined(_DEBUG)
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+    try {
+        if (!init(hInstance, nShowCmd)) {
+            return 0;
+        }
+
+        return run();
+    }
+    catch (DxException& e) {
+        MessageBoxW(nullptr, e.ToString().c_str(), L"HR Failed", MB_OK);
+        return 0;
+    }
 }

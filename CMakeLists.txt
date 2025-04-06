@@ -11,3 +11,8 @@ if (WIN32)
 endif()
 
 target_include_directories(before_main PRIVATE ${CMAKE_SOURCE_DIR}/Source)
+
+target_sources(before_main PRIVATE
+	${CMAKE_SOURCE_DIR}/Source/BeforeRHI_DX12.cpp
+	${CMAKE_SOURCE_DIR}/Source/DxException.cpp
+)
