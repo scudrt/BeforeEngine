@@ -7,7 +7,6 @@
 #include <dxgi1_4.h>
 #include <d3d12.h>
 #include <d3dcompiler.h>
-#include <DirectXMath.h>
 #include <DirectXPackedVector.h>
 #include <DirectXColors.h>
 #include <DirectXCollision.h>
@@ -32,9 +31,12 @@ using namespace Microsoft::WRL;
 
 #include "DxException.h"
 
-class BeforeD3D12 : public RHIBase{
+/*
+* Graphics setup implementation with D3D12
+*/
+class RHIDX12 : public RHIBase{
 public:
-	BeforeD3D12(HWND hwnd): windowHandle(hwnd){}
+	RHIDX12(HWND hwnd): windowHandle(hwnd){}
 
 	virtual bool init() override;
 	virtual void draw() override;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 
 project (BeforeEngine CXX)
 
-add_executable(before_main ${CMAKE_SOURCE_DIR}/source/begin.cpp)
+add_executable(before_main ${CMAKE_SOURCE_DIR}/source/main.cpp)
 
 if (WIN32)
 	add_compile_definitions(RHI_DX12)
@@ -13,6 +13,9 @@ endif()
 target_include_directories(before_main PRIVATE ${CMAKE_SOURCE_DIR}/Source)
 
 target_sources(before_main PRIVATE
+	${CMAKE_SOURCE_DIR}/Source/EngineApp.cpp
 	${CMAKE_SOURCE_DIR}/Source/BeforeRHI_DX12.cpp
 	${CMAKE_SOURCE_DIR}/Source/DxException.cpp
+	${CMAKE_SOURCE_DIR}/Source/GameTime.cpp
+	${CMAKE_SOURCE_DIR}/Source/Vertex.cpp
 )

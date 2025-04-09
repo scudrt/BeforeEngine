@@ -1,6 +1,22 @@
+/*
+开启D3D12调试层。
+done 创建设备。
+done 创建围栏，同步CPU和GPU。
+done 获取描述符大小。
+done 设置MSAA抗锯齿属性。
+done 创建命令队列、命令列表、命令分配器。
+done 创建交换链。
+done 创建描述符堆。
+done 创建描述符。
+done 资源转换。
+done 设置围栏刷新命令队列。
+done 设置视口和裁剪矩形。
+done 将命令从列表传至队列。
+*/
+
 #include "BeforeRHI_DX12.h"
 
-bool BeforeD3D12::init() {
+bool RHIDX12::init() {
 	createDevice();
 	createFence();
 	getDescriptionSize();
@@ -15,7 +31,7 @@ bool BeforeD3D12::init() {
 	return true;
 }
 
-void BeforeD3D12::draw() {
+void RHIDX12::draw() {
 	/* Resetting command list */
 	ThrowIfFailed(cmdAllocator->Reset()); // reuse command-relative memory
 	ThrowIfFailed(cmdList->Reset(cmdAllocator.Get(), nullptr)); // reuse command list and its memory
@@ -73,18 +89,18 @@ void BeforeD3D12::draw() {
 	flushCmdQueue();
 }
 
-void BeforeD3D12::onDestroy() {
+void RHIDX12::onDestroy() {
 	;
 }
 
-void BeforeD3D12::createDevice() {
+void RHIDX12::createDevice() {
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)));
 	ThrowIfFailed(
 		D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&d3dDevice))
 	);
 }
 
-void BeforeD3D12::createFence() {
+void RHIDX12::createFence() {
 	ThrowIfFailed(
 		this->d3dDevice->CreateFence(
 			0,
@@ -94,13 +110,13 @@ void BeforeD3D12::createFence() {
 	);
 }
 
-void BeforeD3D12::getDescriptionSize() {
+void RHIDX12::getDescriptionSize() {
 	rtvDescriptorSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	dsvDescriptorSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	cbv_src_uavDescriptorSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-void BeforeD3D12::setSMAA() {
+void RHIDX12::setSMAA() {
 	msaaQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	msaaQualityLevels.SampleCount = 1;
 	msaaQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
@@ -117,7 +133,7 @@ void BeforeD3D12::setSMAA() {
 	assert(msaaQualityLevels.NumQualityLevels > 0);
 }
 
-void BeforeD3D12::createCommandObjects() {
+void RHIDX12::createCommandObjects() {
 	commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	ThrowIfFailed(
@@ -144,7 +160,7 @@ void BeforeD3D12::createCommandObjects() {
 	cmdList->Reset(cmdAllocator.Get(), nullptr);
 }
 
-void BeforeD3D12::createSwapChain() {
+void RHIDX12::createSwapChain() {
 	swapChain.Reset();
 	DXGI_SWAP_CHAIN_DESC swapChainDesc; // description of swap chain
 	swapChainDesc.BufferDesc.Width = 1280;
@@ -171,7 +187,7 @@ void BeforeD3D12::createSwapChain() {
 	);
 }
 
-void BeforeD3D12::createDescriptorHeap() {
+void RHIDX12::createDescriptorHeap() {
 	// Creating RTV descriptor heap
 	D3D12_DESCRIPTOR_HEAP_DESC rtvDescriptorHeapDesc;
 	rtvDescriptorHeapDesc.NumDescriptors = 2; // two descriptors for double-buffer
@@ -199,7 +215,7 @@ void BeforeD3D12::createDescriptorHeap() {
 	);
 }
 
-void BeforeD3D12::createRTV() {
+void RHIDX12::createRTV() {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(rtvHeap->GetCPUDescriptorHandleForHeapStart());
 	for (int i = 0; i < 2; ++i) {
 		swapChain->GetBuffer(i, IID_PPV_ARGS(swapChainBuffer[i].GetAddressOf()));
@@ -212,7 +228,7 @@ void BeforeD3D12::createRTV() {
 	}
 }
 
-void BeforeD3D12::createDSV() {
+void RHIDX12::createDSV() {
 	D3D12_RESOURCE_DESC dsvResourceDesc;
 	dsvResourceDesc.Alignment = 0;
 	dsvResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -264,7 +280,7 @@ void BeforeD3D12::createDSV() {
 	cmdQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists); // committing commands from list to queue
 }
 
-void BeforeD3D12::flushCmdQueue() {
+void RHIDX12::flushCmdQueue() {
 	++currentFence;
 	cmdQueue->Signal(fence.Get(), currentFence);
 	if (fence->GetCompletedValue() < currentFence) { // GPU fence < CPU fence
@@ -276,7 +292,7 @@ void BeforeD3D12::flushCmdQueue() {
 	}
 }
 
-void BeforeD3D12::createViewportAndScissorRect() {
+void RHIDX12::createViewportAndScissorRect() {
 	// viewport setting
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
