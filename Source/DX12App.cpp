@@ -1,5 +1,49 @@
 #include "DX12App.h"
 
+#include <iostream>
+
+void DX12App::render() {
+	// Reset command objects firstly
+	ThrowIfFailed(mCmdAllocator->Reset());
+	ThrowIfFailed(mCmdList->Reset(mCmdAllocator.Get(), nullptr));
+
+	// Swap buffer
+	mCmdList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			mSwapChainBuffer[mCurrentBufferIndex].Get(),
+			D3D12_RESOURCE_STATE_PRESENT,
+			D3D12_RESOURCE_STATE_RENDER_TARGET
+		)
+	);
+
+	// TODO: setup viewport and scissor
+	;
+}
+
+bool DX12App::initDirectX12() {
+#if defined(DEBUG) || defined(_DEBUG)
+	// Enable debug layer if debug mode is enabled
+	ComPtr<ID3D12Debug> debugController;
+	ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
+	debugController->EnableDebugLayer();
+#endif
+	
+	// Go
+	createDevice();
+	createFence();
+	getDescriptorSizes();
+	setupSMAA();
+	createCommandObjects();
+	createSwapChain();
+	createDescriptorHeap();
+	createRTV();
+	createDSV();
+	CreateViewportAndScissorRect();
+
+	return true;
+}
+
 void DX12App::createDevice() {
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mDXGIFactory)));
 
@@ -155,8 +199,9 @@ void DX12App::createDescriptorHeap() {
 	);
 }
 
-
 void DX12App::createRTV() {
+	mCurrentBufferIndex = 0; // Use index 0 as the front buffer at the first frame
+
 	// Get descriptor handle from heap
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRTVHeap->GetCPUDescriptorHandleForHeapStart());
 	// Create RTV by the descriptor handle
@@ -227,10 +272,47 @@ void DX12App::createDSV() {
 	mCmdQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists);
 }
 
-
 /*
 * Synchronize and flush command queue from CPU to GPU
 */
 void DX12App::FlushCmdQueue() {
-	// TODO
+	++mCurrentFenceValue;
+	mCmdQueue->Signal(mFence.Get(), mCurrentFenceValue);
+
+	// Check if the current fence value is synced, if not, then wait for it
+	if (mFence->GetCompletedValue() < mCurrentFenceValue) {
+		// Create wait event
+		HANDLE eventHandle = CreateEvent(nullptr, false, false, LPCSTR("FenceSetDone"));
+		if (eventHandle == 0) {
+			std::cerr << "DX12App::FlushCmdQueue(): Failed to create event handle:" << eventHandle << std::endl;
+			exit(1);
+		}
+		// Once the fence is synced to the latest, trigger this event
+		mFence->SetEventOnCompletion(mCurrentFenceValue, eventHandle);
+		// Wait until this event is triggered.
+		WaitForSingleObject(eventHandle, INFINITE);
+		// Don't forget to release the resource
+		CloseHandle(eventHandle);
+	}
+}
+
+/*
+* Setup and create viewport and scissor rect for the pipeline
+*/
+void DX12App::CreateViewportAndScissorRect() {
+	D3D12_VIEWPORT viewport;
+	D3D12_RECT scissorRect;
+	// Setup viewport
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.Width = 1280;
+	viewport.Height = 720;
+	viewport.MaxDepth = 1.0f;
+	viewport.MinDepth = 0.0f;
+
+	// Setup scissor rect
+	scissorRect.left = 0;
+	scissorRect.top = 0;
+	scissorRect.right = 1280;
+	scissorRect.bottom = 720;
 }

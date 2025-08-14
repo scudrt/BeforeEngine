@@ -5,6 +5,21 @@
 class DX12App {
 public:
 	/*
+	* Setup DX12 pipeline
+	*/
+	bool initDirectX12();
+
+	/*
+	* Render the scene
+	*/
+	void render();
+
+	/*
+	* Synchronize and flush command queue from CPU to GPU
+	*/
+	void FlushCmdQueue();
+protected:
+	/*
 	* Create DXGI factory and device
 	*/
 	void createDevice();
@@ -46,11 +61,9 @@ public:
 	void createDSV();
 
 	/*
-	* Synchronize and flush command queue from CPU to GPU
+	* Setup and create viewport and scissor rect for the pipeline
 	*/
-	void FlushCmdQueue();
-protected:
-	;
+	void CreateViewportAndScissorRect();
 private:
 	/*
 	* ComPtrs for DX12 components
@@ -86,8 +99,10 @@ private:
 	UINT mDSVDescSize;
 	// Size of const buffer view(CBV) | shader resource view(SRV) and random access view(RAV)
 	UINT mCBV_SRV_UAVDescSize;
+	// Indicating the current back buffer index for buffer swapping
+	UINT mCurrentBufferIndex;
 
-	int mCurrentFenceCount;
+	int mCurrentFenceValue;
 
 	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS mMSAAQualityLevels;
 };

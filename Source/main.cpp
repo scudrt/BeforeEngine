@@ -1,8 +1,33 @@
 #include "before_dx12.h"
+#include "DX12App.h"
+
+// The Global app of DirectX12
+DX12App GApp;
+
+int _run() {
+	//消息循环
+	//定义消息结构体
+	MSG msg = { 0 };
+	BOOL bRet = 0;
+	//如果GetMessage函数不等于0，说明没有接受到WM_QUIT
+	while (msg.message != WM_QUIT) {
+		// Message incoming
+		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
+			// Translate keyboard message into character messages
+			TranslateMessage(&msg);
+			// Distribute the message to the corresponding process
+			DispatchMessage(&msg);
+		}
+		// No message, keep looping
+		else {
+			GApp->render();
+		}
+	}
+	return (int)msg.wParam;
+}
 
 // 窗口过程函数
-LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
+LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	//消息处理
 	switch (msg)
 	{
@@ -16,12 +41,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	//将上面没有处理的消息转发给默认的窗口过程
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int nShowCmd) {
-#if defined(DEBUG) | defined(_DEBUG)
-    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-#endif
-
+bool initWindow(HINSTANCE hInstance, int nShowCmd) {
 	//窗口初始化描述结构体(WNDCLASS)
 	WNDCLASS wc;
 	wc.style = CS_HREDRAW | CS_VREDRAW;	//当工作区宽高改变，则重新绘制窗口
@@ -39,7 +59,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 	{
 		//消息框函数，参数1：消息框所属窗口句柄，可为NULL。参数2：消息框显示的文本信息。参数3：标题文本。参数4：消息框样式
 		MessageBox(0, LPSTR("RegisterClass Failed"), 0, 0);
-		return 0;
+		return false;
 	}
 
 	//窗口类注册成功
@@ -58,29 +78,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 	if (!mhMainWnd)
 	{
 		MessageBox(0, LPCSTR("CreatWindow Failed"), 0, 0);
-		return 0;
+		return false;
 	}
 	//窗口创建成功,则显示并更新窗口
 	ShowWindow(mhMainWnd, nShowCmd);
 	UpdateWindow(mhMainWnd);
 
-	//消息循环
-	//定义消息结构体
-	MSG msg = { 0 };
-	BOOL bRet = 0;
-	//如果GetMessage函数不等于0，说明没有接受到WM_QUIT
-	while (bRet = GetMessage(&msg, 0, 0, 0) != 0)
-	{
-		//如果等于-1，说明GetMessage函数出错了，弹出错误框
-		if (bRet == -1) {
-			MessageBox(0, LPCSTR("GetMessage Failed"), LPCSTR("Errow"), MB_OK);
+	return true;
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int nShowCmd) {
+#if defined(DEBUG) | defined(_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+#endif
+
+	try {
+		if (!initWindow(hInstance, nShowCmd)) {
+			return 0;
 		}
-		//如果等于其他值，说明接收到了消息
-		else
-		{
-			TranslateMessage(&msg);	//键盘按键转换，将虚拟键消息转换为字符消息
-			DispatchMessage(&msg);	//把消息分派给相应的窗口过程
+		if (!GApp.initDirectX12()) {
+			return 0;
 		}
+
+		return _run();
 	}
-	return (int)msg.wParam;
+	catch (DxException& e) {
+		MessageBox(nullptr, LPCSTR(e.ToString().c_str()), LPCSTR("HR Failed"), MB_OK);
+		return 0;
+	}
 }
