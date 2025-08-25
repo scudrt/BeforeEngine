@@ -1,4 +1,6 @@
-#include "DxException.h"
+#include "before_dx12.h"
+
+HWND mhMainWnd = 0;	// handle of window
 
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber) :
 	ErrorCode(hr),

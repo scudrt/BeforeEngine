@@ -25,15 +25,13 @@
 #include "d3dx12_utils/d3dx12.h"
 #include <comdef.h>
 
-#include "DxException.h"
-
 using namespace Microsoft::WRL;
 
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "D3D12.lib")
 #pragma comment(lib, "dxgi.lib")
 
-HWND mhMainWnd = 0;	// handle of window
+extern HWND mhMainWnd;	// handle of window
 
 //AnsiToWString函数（转换成宽字符类型的字符串，wstring）
 //在Windows平台上，我们应该都使用wstring和wchar_t，处理方式是在字符串前+L
@@ -54,3 +52,17 @@ inline std::wstring AnsiToWString(const std::string& str)
 }
 #endif
 
+//DxException类
+class DxException
+{
+public:
+	DxException() = default;
+	DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber);
+
+	std::wstring ToString()const;
+
+	HRESULT ErrorCode = S_OK;
+	std::wstring FunctionName;
+	std::wstring Filename;
+	int LineNumber = -1;
+};

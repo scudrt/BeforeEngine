@@ -63,7 +63,9 @@ protected:
 	/*
 	* Setup and create viewport and scissor rect for the pipeline
 	*/
-	void CreateViewportAndScissorRect();
+	void createViewportAndScissorRect();
+
+	inline void submitCommandList();
 private:
 	/*
 	* ComPtrs for DX12 components
@@ -92,6 +94,11 @@ private:
 	ComPtr<ID3D12Resource> mSwapChainBuffer[2]; // Buffers for RTV
 	ComPtr<ID3D12Resource> mDepthStencilBuffer; // Buffer for DSV
 
+	/*
+	* Viewport and scissor
+	*/
+	D3D12_VIEWPORT mViewport;
+	D3D12_RECT mScissorRect;
 
 	// Size of render target view
 	UINT mRTVDescSize;

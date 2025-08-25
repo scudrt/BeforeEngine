@@ -1,4 +1,3 @@
-#include "before_dx12.h"
 #include "DX12App.h"
 
 // The Global app of DirectX12
@@ -20,7 +19,7 @@ int _run() {
 		}
 		// No message, keep looping
 		else {
-			GApp->render();
+			GApp.render();
 		}
 	}
 	return (int)msg.wParam;
@@ -103,7 +102,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		return _run();
 	}
 	catch (DxException& e) {
-		MessageBox(nullptr, LPCSTR(e.ToString().c_str()), LPCSTR("HR Failed"), MB_OK);
+		MessageBoxW(nullptr, e.ToString().c_str(), LPCWSTR("HR Failed"), MB_OK);
 		return 0;
 	}
 }

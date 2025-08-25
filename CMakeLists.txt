@@ -15,5 +15,6 @@ target_include_directories(before_main PRIVATE ${CMAKE_SOURCE_DIR}/Source)
 target_sources(before_main PRIVATE
 	${CMAKE_SOURCE_DIR}/Source/DX12App.cpp
 	${CMAKE_SOURCE_DIR}/Source/DxException.cpp
+	${CMAKE_SOURCE_DIR}/Source/GameTimer.cpp
 )
 

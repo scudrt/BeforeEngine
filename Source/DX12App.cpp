@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#define DEBUG
+
 void DX12App::render() {
 	// Reset command objects firstly
 	ThrowIfFailed(mCmdAllocator->Reset());
@@ -17,8 +19,45 @@ void DX12App::render() {
 		)
 	);
 
-	// TODO: setup viewport and scissor
-	;
+	// Setup viewport and scissor
+	mCmdList->RSSetViewports(1, &mViewport);
+	mCmdList->RSSetScissorRects(1, &mScissorRect);
+
+	// Get and clear buffers
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+		mRTVHeap->GetCPUDescriptorHandleForHeapStart(),
+		mCurrentBufferIndex,
+		mRTVDescSize
+	);
+	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = mDSVHeap->GetCPUDescriptorHandleForHeapStart();
+	mCmdList->ClearRenderTargetView(
+		rtvHandle,
+		DirectX::Colors::Blue,
+		0, nullptr
+	);
+	mCmdList->ClearDepthStencilView(
+		dsvHandle,
+		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+		1.0f, 0,
+		0, nullptr
+	);
+
+	// Set render target ans depth stencil view
+	mCmdList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
+	// Wait for buffer to be presented
+	mCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+		mSwapChainBuffer[mCurrentBufferIndex].Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_PRESENT
+	));
+	ThrowIfFailed(mCmdList->Close());
+
+	submitCommandList();
+
+	ThrowIfFailed(mSwapChain->Present(0, 0));
+	mCurrentBufferIndex = (mCurrentBufferIndex + 1) & 1;
+
+	FlushCmdQueue();
 }
 
 bool DX12App::initDirectX12() {
@@ -39,7 +78,7 @@ bool DX12App::initDirectX12() {
 	createDescriptorHeap();
 	createRTV();
 	createDSV();
-	CreateViewportAndScissorRect();
+	createViewportAndScissorRect();
 
 	return true;
 }
@@ -107,7 +146,6 @@ void DX12App::createCommandObjects() {
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
 	commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 	commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-	ComPtr<ID3D12CommandQueue> mCmdQueue;
 	ThrowIfFailed(
 		mDevice->CreateCommandQueue(
 			&commandQueueDesc,
@@ -116,7 +154,6 @@ void DX12App::createCommandObjects() {
 	);
 
 	// Create command allocator
-	ComPtr<ID3D12CommandAllocator> mCmdAllocator;
 	ThrowIfFailed(
 		mDevice->CreateCommandAllocator(
 			D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -125,7 +162,6 @@ void DX12App::createCommandObjects() {
 	);
 
 	// Create command list
-	ComPtr<ID3D12GraphicsCommandList> mCmdList;
 	ThrowIfFailed(
 		mDevice->CreateCommandList(
 			0,
@@ -142,9 +178,6 @@ void DX12App::createCommandObjects() {
 * Create swap chain
 */
 void DX12App::createSwapChain() {
-	// Try release swap chain before reallocating it
-	mSwapChain.Reset();
-
 	// Swap chain creating description
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	swapChainDesc.BufferDesc.Width = 1280;
@@ -158,13 +191,17 @@ void DX12App::createSwapChain() {
 	swapChainDesc.OutputWindow = mhMainWnd; // Handle of output window
 	swapChainDesc.SampleDesc.Count = 1; // The count/size of multisampling
 	swapChainDesc.SampleDesc.Quality = 0; // The quality of multisampling
-	swapChainDesc.BufferCount = 2; // Double buffers
+	swapChainDesc.Windowed = true;
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // Flip and discard the old buffer
+	swapChainDesc.BufferCount = 2; // Double buffers
 	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH; // Auto-customizing
+
+	// Try release swap chain before reallocating it
+	mSwapChain.Reset();
 	// Create swap chain, finally
 	ThrowIfFailed(
 		mDXGIFactory->CreateSwapChain(
-			mDevice.Get(),
+			mCmdQueue.Get(), // Use cmdQueue instead of device
 			&swapChainDesc,
 			mSwapChain.GetAddressOf()
 		)
@@ -266,10 +303,8 @@ void DX12App::createDSV() {
 		)
 	);
 	// End of the command list
-	ThrowIfFailed(mCmdList->Close());
-	// Construct command list array and pass it to the command queue for execution
-	ID3D12CommandList* cmdLists[] = { mCmdList.Get() };
-	mCmdQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists);
+	mCmdList->Close();
+	submitCommandList();
 }
 
 /*
@@ -299,20 +334,24 @@ void DX12App::FlushCmdQueue() {
 /*
 * Setup and create viewport and scissor rect for the pipeline
 */
-void DX12App::CreateViewportAndScissorRect() {
-	D3D12_VIEWPORT viewport;
-	D3D12_RECT scissorRect;
+void DX12App::createViewportAndScissorRect() {
 	// Setup viewport
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.Width = 1280;
-	viewport.Height = 720;
-	viewport.MaxDepth = 1.0f;
-	viewport.MinDepth = 0.0f;
+	mViewport.TopLeftX = 0;
+	mViewport.TopLeftY = 0;
+	mViewport.Width = 1280;
+	mViewport.Height = 720;
+	mViewport.MaxDepth = 1.0f;
+	mViewport.MinDepth = 0.0f;
 
 	// Setup scissor rect
-	scissorRect.left = 0;
-	scissorRect.top = 0;
-	scissorRect.right = 1280;
-	scissorRect.bottom = 720;
+	mScissorRect.left = 0;
+	mScissorRect.top = 0;
+	mScissorRect.right = 1280;
+	mScissorRect.bottom = 720;
+}
+
+void DX12App::submitCommandList() {
+	// Construct command list array and pass it to the command queue for execution
+	ID3D12CommandList* cmdLists[] = { mCmdList.Get() };
+	mCmdQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists);
 }
