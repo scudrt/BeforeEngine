@@ -1,13 +1,54 @@
-#include "DX12App.h"
+#include "BeforeEngine.h"
+#include "GameTimer.h"
 
 // The Global app of DirectX12
-DX12App GApp;
+BeforeEngine GEngine;
+GameTimer GGameTimer;
+
+void updateFPSInfo(float FPS, float MSPF) {
+	std::wstring fpsStr = std::to_wstring(FPS);
+	std::wstring mspfStr = std::to_wstring(MSPF);
+	std::wstring newTitleStr = L"D3D12Init FPS:" + fpsStr + L" | frame time: " + mspfStr + L" ms";
+	SetWindowTextW(mhMainWnd, newTitleStr.c_str());
+}
+
+void updateFrameState() {
+	static int frameCount = 0;
+	static float lastSecond = 0.0f;
+
+	++frameCount;
+
+	if (GGameTimer.totalTime() - lastSecond >= 1.0f) {
+		updateFPSInfo(frameCount, 1000.0f / (float)frameCount);
+		lastSecond += 1.0f;
+		frameCount = 0;
+	}
+}
+
+/*
+* The implementation of game loop
+*/
+void _gameLoop() {
+	GGameTimer.tick();
+
+	if (GGameTimer.isStopped()) {
+		Sleep(500);
+		return;
+	}
+
+	updateFrameState();
+
+	GEngine.Render();
+}
 
 int _run() {
 	//消息循环
 	//定义消息结构体
 	MSG msg = { 0 };
 	BOOL bRet = 0;
+	// Initialize game timer
+	GGameTimer.reset();
+
 	//如果GetMessage函数不等于0，说明没有接受到WM_QUIT
 	while (msg.message != WM_QUIT) {
 		// Message incoming
@@ -19,7 +60,7 @@ int _run() {
 		}
 		// No message, keep looping
 		else {
-			GApp.render();
+			_gameLoop();
 		}
 	}
 	return (int)msg.wParam;
@@ -95,7 +136,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, in
 		if (!initWindow(hInstance, nShowCmd)) {
 			return 0;
 		}
-		if (!GApp.initDirectX12()) {
+		if (!GEngine.InitGraphics()) {
 			return 0;
 		}
 

@@ -1,4 +1,4 @@
-#include "before_dx12.h"
+#include "DX12Util.h"
 
 HWND mhMainWnd = 0;	// handle of window
 

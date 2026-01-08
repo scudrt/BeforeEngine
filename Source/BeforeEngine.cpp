@@ -1,41 +1,166 @@
-#include "DX12App.h"
+#include "BeforeEngine.h"
 
 #include <iostream>
 
 #define DEBUG
 
-void DX12App::render() {
-	// Reset command objects firstly
-	ThrowIfFailed(mCmdAllocator->Reset());
-	ThrowIfFailed(mCmdList->Reset(mCmdAllocator.Get(), nullptr));
+void BeforeEngine::SetupModels() {
+	/*
+	* Definition of a box
+	*/
+	// Positions of vertices
+	std::array<Vertex, 8> vertices = {
+		Vertex({ vec3(-1.0f, -1.0f, -1.0f), vec4(1, 1, 1, 1) }),
+		Vertex({ vec3(-1.0f, +1.0f, -1.0f), vec4(0, 0, 0, 1) }),
+		Vertex({ vec3(+1.0f, +1.0f, -1.0f), vec4(1, 0, 0, 1) }),
+		Vertex({ vec3(+1.0f, -1.0f, -1.0f), vec4(0, 1, 0, 1) }),
+		Vertex({ vec3(-1.0f, -1.0f, +1.0f), vec4(0, 0, 1, 1) }),
+		Vertex({ vec3(-1.0f, +1.0f, +1.0f), vec4(1, 1, 0, 1) }),
+		Vertex({ vec3(+1.0f, +1.0f, +1.0f), vec4(0, 1, 1, 1) }),
+		Vertex({ vec3(+1.0f, -1.0f, +1.0f), vec4(1, 0, 1, 1) })
+	};
+	// Indices of each face(triangle)
+	std::array<int, 36> indices = {
+		// front
+		0, 1, 2,
+		0, 2, 3,
+		// back
+		4, 6, 5,
+		4, 7, 6,
+		// left
+		4, 5, 1,
+		4, 1, 0,
+		// right
+		3, 2, 6,
+		3, 6, 7,
+		// up
+		1, 5, 6,
+		1, 6, 2,
+		// down
+		4, 0, 3,
+		4, 3, 7
+	};
 
-	// Swap buffer
+
+	/*
+	* Setting up vertex buffer
+	*/
+	// Create upload buffer and define a vertex buffer
+	ComPtr<ID3D12Resource> vertexUploadBuffer = nullptr;
+	ComPtr<ID3D12Resource> vertexBufferGPU = mGraphics.CreateDefaultBuffer(sizeof(vertices), vertices.data(), vertexUploadBuffer);
+	// Bind vertex data to the render pipeline, indicating how to read vertex buffer
+	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+	vertexBufferView.BufferLocation = vertexBufferGPU->GetGPUVirtualAddress();
+	vertexBufferView.SizeInBytes = sizeof(Vertex) * 8; // 8 vertex for a box
+	vertexBufferView.StrideInBytes = sizeof(Vertex);
+	// Set vertex buffer to the graphics
+	mGraphics.mCmdList->IASetVertexBuffers(0, 1, &vertexBufferView);
+
+	/*
+	* Setting up indices, as vertex buffer do
+	*/
+	ComPtr<ID3D12Resource> indexUploadBuffer = nullptr;
+	ComPtr<ID3D12Resource> indexBufferGPU = mGraphics.CreateDefaultBuffer(sizeof(indices), indices.data(), indexUploadBuffer);
+	D3D12_INDEX_BUFFER_VIEW indexBufferView;
+	indexBufferView.BufferLocation = indexBufferGPU->GetGPUVirtualAddress();
+	indexBufferView.SizeInBytes = sizeof(int) * indices.size();
+	indexBufferView.Format = DXGI_FORMAT_R16_UINT;
+	mGraphics.mCmdList->IASetIndexBuffer(&indexBufferView);
+}
+
+ComPtr<ID3D12Resource> DX12Graphics::CreateDefaultBuffer(UINT64 byteSize, const void* data, ComPtr<ID3D12Resource>& uploadBuffer) {
+	// Creating an upload buffer
+	ThrowIfFailed(
+		mDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(byteSize),
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&uploadBuffer)
+		)
+	);
+
+	// Creating a default buffer
+	ComPtr<ID3D12Resource> defaultBuffer;
+	ThrowIfFailed(
+		mDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(byteSize),
+			D3D12_RESOURCE_STATE_COMMON,
+			nullptr,
+			IID_PPV_ARGS(&defaultBuffer)
+		)
+	);
+
+	// Transfer default buffer state from COMMON to COPY_DEST
 	mCmdList->ResourceBarrier(
 		1,
 		&CD3DX12_RESOURCE_BARRIER::Transition(
-			mSwapChainBuffer[mCurrentBufferIndex].Get(),
+			defaultBuffer.Get(),
+			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_RESOURCE_STATE_COPY_DEST
+		)
+	);
+	// Copy data from upload buffer to the default buffer
+	D3D12_SUBRESOURCE_DATA subResourceData;
+	subResourceData.pData = data;
+	subResourceData.RowPitch = byteSize;
+	subResourceData.SlicePitch = byteSize;
+	UpdateSubresources<1>(
+		mCmdList.Get(),
+		defaultBuffer.Get(),
+		uploadBuffer.Get(),
+		0, 0, 1,
+		&subResourceData
+	);
+
+	// Transfer default buffer state from COPY_DEST to GENERIC_READ
+	mCmdList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			defaultBuffer.Get(),
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			D3D12_RESOURCE_STATE_GENERIC_READ
+		)
+	);
+
+	return defaultBuffer;
+}
+
+void BeforeEngine::Render() {
+	// Reset command objects firstly
+	ThrowIfFailed(mGraphics.mCmdAllocator->Reset());
+	ThrowIfFailed(mGraphics.mCmdList->Reset(mGraphics.mCmdAllocator.Get(), nullptr));
+
+	// Swap buffer
+	mGraphics.mCmdList->ResourceBarrier(
+		1,
+		&CD3DX12_RESOURCE_BARRIER::Transition(
+			mGraphics.mSwapChainBuffer[mGraphics.mCurrentBufferIndex].Get(),
 			D3D12_RESOURCE_STATE_PRESENT,
 			D3D12_RESOURCE_STATE_RENDER_TARGET
 		)
 	);
 
 	// Setup viewport and scissor
-	mCmdList->RSSetViewports(1, &mViewport);
-	mCmdList->RSSetScissorRects(1, &mScissorRect);
+	mGraphics.mCmdList->RSSetViewports(1, &mGraphics.mViewport);
+	mGraphics.mCmdList->RSSetScissorRects(1, &mGraphics.mScissorRect);
 
 	// Get and clear buffers
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
-		mRTVHeap->GetCPUDescriptorHandleForHeapStart(),
-		mCurrentBufferIndex,
-		mRTVDescSize
+		mGraphics.mRTVHeap->GetCPUDescriptorHandleForHeapStart(),
+		mGraphics.mCurrentBufferIndex,
+		mGraphics.mRTVDescSize
 	);
-	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = mDSVHeap->GetCPUDescriptorHandleForHeapStart();
-	mCmdList->ClearRenderTargetView(
+	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = mGraphics.mDSVHeap->GetCPUDescriptorHandleForHeapStart();
+	mGraphics.mCmdList->ClearRenderTargetView(
 		rtvHandle,
 		DirectX::Colors::Blue,
 		0, nullptr
 	);
-	mCmdList->ClearDepthStencilView(
+	mGraphics.mCmdList->ClearDepthStencilView(
 		dsvHandle,
 		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
 		1.0f, 0,
@@ -43,24 +168,24 @@ void DX12App::render() {
 	);
 
 	// Set render target ans depth stencil view
-	mCmdList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
+	mGraphics.mCmdList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 	// Wait for buffer to be presented
-	mCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
-		mSwapChainBuffer[mCurrentBufferIndex].Get(),
+	mGraphics.mCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+		mGraphics.mSwapChainBuffer[mGraphics.mCurrentBufferIndex].Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PRESENT
 	));
-	ThrowIfFailed(mCmdList->Close());
+	ThrowIfFailed(mGraphics.mCmdList->Close());
 
-	submitCommandList();
+	mGraphics.SubmitCommandList();
 
-	ThrowIfFailed(mSwapChain->Present(0, 0));
-	mCurrentBufferIndex = (mCurrentBufferIndex + 1) & 1;
+	ThrowIfFailed(mGraphics.mSwapChain->Present(0, 0));
+	mGraphics.mCurrentBufferIndex = (mGraphics.mCurrentBufferIndex + 1) & 1;
 
-	FlushCmdQueue();
+	mGraphics.FlushCmdQueue();
 }
 
-bool DX12App::initDirectX12() {
+bool BeforeEngine::InitGraphics() {
 #if defined(DEBUG) || defined(_DEBUG)
 	// Enable debug layer if debug mode is enabled
 	ComPtr<ID3D12Debug> debugController;
@@ -69,21 +194,21 @@ bool DX12App::initDirectX12() {
 #endif
 	
 	// Go
-	createDevice();
-	createFence();
-	getDescriptorSizes();
-	setupSMAA();
-	createCommandObjects();
-	createSwapChain();
-	createDescriptorHeap();
-	createRTV();
-	createDSV();
-	createViewportAndScissorRect();
+	mGraphics.CreateDevice();
+	mGraphics.CreateFence();
+	mGraphics.GetDescriptorSizes();
+	mGraphics.SetupSMAA();
+	mGraphics.CreateCommandObjects();
+	mGraphics.CreateSwapChain();
+	mGraphics.CreateDescriptorHeap();
+	mGraphics.CreateRTV();
+	mGraphics.CreateDSV();
+	mGraphics.CreateViewportAndScissorRect();
 
 	return true;
 }
 
-void DX12App::createDevice() {
+void DX12Graphics::CreateDevice() {
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mDXGIFactory)));
 
 	ThrowIfFailed(
@@ -95,7 +220,7 @@ void DX12App::createDevice() {
 	);
 }
 
-void DX12App::createFence() {
+void DX12Graphics::CreateFence() {
 	ThrowIfFailed(
 		mDevice->CreateFence(
 			0,
@@ -105,7 +230,7 @@ void DX12App::createFence() {
 	);
 }
 
-void DX12App::getDescriptorSizes() {
+void DX12Graphics::GetDescriptorSizes() {
 	mRTVDescSize = mDevice->GetDescriptorHandleIncrementSize(
 		D3D12_DESCRIPTOR_HEAP_TYPE_RTV
 	);
@@ -120,7 +245,7 @@ void DX12App::getDescriptorSizes() {
 /*
 * Setup SMAA
 */
-void DX12App::setupSMAA() {
+void DX12Graphics::SetupSMAA() {
 	mMSAAQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	mMSAAQualityLevels.SampleCount = 1;
 	mMSAAQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
@@ -141,7 +266,7 @@ void DX12App::setupSMAA() {
 /*
 * Create command objects including command queue, command allocator and command list
 */
-void DX12App::createCommandObjects() {
+void DX12Graphics::CreateCommandObjects() {
 	// Create command queue using command queue description
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
 	commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -177,7 +302,7 @@ void DX12App::createCommandObjects() {
 /*
 * Create swap chain
 */
-void DX12App::createSwapChain() {
+void DX12Graphics::CreateSwapChain() {
 	// Swap chain creating description
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	swapChainDesc.BufferDesc.Width = 1280;
@@ -208,7 +333,7 @@ void DX12App::createSwapChain() {
 	);
 }
 
-void DX12App::createDescriptorHeap() {
+void DX12Graphics::CreateDescriptorHeap() {
 	// Create render target view descriptor heap
 	D3D12_DESCRIPTOR_HEAP_DESC rtvDescriptorHeapDesc;
 	rtvDescriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -236,7 +361,7 @@ void DX12App::createDescriptorHeap() {
 	);
 }
 
-void DX12App::createRTV() {
+void DX12Graphics::CreateRTV() {
 	mCurrentBufferIndex = 0; // Use index 0 as the front buffer at the first frame
 
 	// Get descriptor handle from heap
@@ -256,7 +381,7 @@ void DX12App::createRTV() {
 	}
 }
 
-void DX12App::createDSV() {
+void DX12Graphics::CreateDSV() {
 	D3D12_RESOURCE_DESC dsvResourceDesc;
 	dsvResourceDesc.Alignment = 0;
 	dsvResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -304,13 +429,13 @@ void DX12App::createDSV() {
 	);
 	// End of the command list
 	mCmdList->Close();
-	submitCommandList();
+	SubmitCommandList();
 }
 
 /*
 * Synchronize and flush command queue from CPU to GPU
 */
-void DX12App::FlushCmdQueue() {
+void DX12Graphics::FlushCmdQueue() {
 	++mCurrentFenceValue;
 	mCmdQueue->Signal(mFence.Get(), mCurrentFenceValue);
 
@@ -319,7 +444,7 @@ void DX12App::FlushCmdQueue() {
 		// Create wait event
 		HANDLE eventHandle = CreateEvent(nullptr, false, false, LPCSTR("FenceSetDone"));
 		if (eventHandle == 0) {
-			std::cerr << "DX12App::FlushCmdQueue(): Failed to create event handle:" << eventHandle << std::endl;
+			std::cerr << "DX12Graphics::FlushCmdQueue(): Failed to create event handle:" << eventHandle << std::endl;
 			exit(1);
 		}
 		// Once the fence is synced to the latest, trigger this event
@@ -334,7 +459,7 @@ void DX12App::FlushCmdQueue() {
 /*
 * Setup and create viewport and scissor rect for the pipeline
 */
-void DX12App::createViewportAndScissorRect() {
+void DX12Graphics::CreateViewportAndScissorRect() {
 	// Setup viewport
 	mViewport.TopLeftX = 0;
 	mViewport.TopLeftY = 0;
@@ -350,7 +475,7 @@ void DX12App::createViewportAndScissorRect() {
 	mScissorRect.bottom = 720;
 }
 
-void DX12App::submitCommandList() {
+void DX12Graphics::SubmitCommandList() {
 	// Construct command list array and pass it to the command queue for execution
 	ID3D12CommandList* cmdLists[] = { mCmdList.Get() };
 	mCmdQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists);
